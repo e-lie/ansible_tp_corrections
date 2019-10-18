@@ -9,7 +9,7 @@ flask_apps:
   - name: hello2
     domain: hello2.test
     repository: https://github.com/e-lie/flask_hello_ansible.git
-    version: master
+    version: version2
     user: flask2
     entrypoint: app
 
