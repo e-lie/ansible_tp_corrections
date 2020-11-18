@@ -1,6 +1,5 @@
 - hosts: appservers
   become: yes
 
-
   roles:
     - flaskapp
