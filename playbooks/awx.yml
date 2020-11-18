@@ -4,6 +4,10 @@
   vars:
     docker_install_compose: true
 
+  pre_tasks:
+    - apt:
+        update_cache: yes
+
   roles:
     - geerlingguy.docker
     - simple_awx
