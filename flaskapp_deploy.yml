@@ -2,29 +2,17 @@
   become: yes
 
   vars:
-    flask_apps:
-      - name: hello
-        domain: "hello.test"
-        user: "flask1"
-        version: master
-        repository: https://github.com/e-lie/flask_hello_ansible.git
+    app:
+      name: hello
+      user: flask 
+      domain: hello.test
 
-      - name: hello2
-        domain: "hello2.test"
-        user: "flask2"
-        version: master
-        repository: https://github.com/e-lie/flask_hello_ansible.git
+  tasks:
+    - name: update apt cache
+      apt:
+        update_cache: yes
 
-    # app:
-    #   name: hello
-    #   domain: "hello.test"
-    #   user: "flask1"
-    #   repository: https://github.com/e-lie/flask_hello_ansible.git
-    #   version: master
-    
-
-  tasks: 
-    - name: ensure apt dependencies are present
+    - name: ensure basic apps present
       apt:
         name:
           - python3-dev
@@ -34,21 +22,71 @@
           - nginx
           - git
         state: present
-        update_cache: yes
 
-    - name: ensure nginx is started
+    - name: ensure nginx started
       systemd:
         name: nginx
         state: started
 
-    - name: app installation steps
-      include_tasks: deploy_app_tasks.yml
-      loop: "{{ flask_apps }}"
-      loop_control:
-        loop_var: app
+    - name: "add the user {{ app.user }}"
+      user:
+        name: "{{ app.user }}"
+        state: present
+        append: yes # important pour ne pas supprimer les groupes d'un utilisateur existant
+        groups:
+        - "www-data"
 
-  handlers:
-    - name: reload nginx
+    - name: git get app files
+      git:
+        repo: "https://github.com/e-lie/flask_hello_ansible.git"
+        dest: /home/{{ app.user }}/{{ app.name }}
+        version: "master"
+        clone: yes
+        update: no
+
+    - name: install modules in a virtualenv
+      pip:
+        requirements: /home/{{ app.user }}/{{ app.name }}/requirements.txt
+        virtualenv: /home/{{ app.user }}/{{ app.name }}/venv
+        virtualenv_python: python3
+
+    - name: change permissions of app directory
+      file:
+        path: /home/{{ app.user }}/{{ app.name }}
+        state: directory
+        owner: "{{ app.user }}"
+        recurse: true
+
+    - name: template systemd service config
+      template:
+        src: templates/app.service.j2
+        dest: /etc/systemd/system/{{ app.name }}.service
+
+    - name: start systemd app service
       systemd:
-        name: nginx
-        state: reloaded
+        name: "{{ app.name }}.service"
+        state: restarted
+        enabled: yes
+
+    - name: template nginx site config
+      template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/sites-available/{{ app.domain }}.conf
+
+    - name: remove default nginx site config
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: enable nginx site
+      file:
+        src: /etc/nginx/sites-available/{{ app.domain }}.conf
+        dest: /etc/nginx/sites-enabled/{{ app.domain }}.conf
+        state: link
+        force: yes
+
+    - name: restart  nginx service
+      systemd:
+        name: "nginx"
+        state: restarted
+        enabled: yes
