@@ -1,4 +1,4 @@
 
 
 do_api_token = "<api token for digital ocean>"
-do_sshkey_id = "<sshkey fingerprint>" 
+do_sshkey_id = "30:5b:6f:06:3f:14:20:38:aa:d9:6a:f9:f3:d4:ea:ba" 

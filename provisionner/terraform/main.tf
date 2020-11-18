@@ -1,8 +1,25 @@
 variable "do_api_token" {}
 variable "do_sshkey_id" {}
 
+terraform {
+  required_providers {
+    digitalocean = {
+      source = "digitalocean/digitalocean"
+      version = "2.2.0"
+    }
+    ansible = {
+      source = "nbering/ansible"
+      version = "1.0.4"
+    }
+  }
+}
+
 provider "digitalocean" {
     token = "${var.do_api_token}"
+}
+
+provider "ansible" {
+  # Configuration options
 }
 
 locals {
