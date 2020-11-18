@@ -1,0 +1,21 @@
+- hosts: appservers
+  become: yes
+
+  vars:
+    flask_apps:
+    - name: hello
+      domain: hello.test
+      repository: https://github.com/e-lie/flask_hello_ansible.git
+      version: version2
+      user: flask1
+
+    - name: hello2
+      domain: hello2.test
+      repository: https://github.com/e-lie/flask_hello_ansible.git
+      version: version2
+      user: flask2
+
+    flask_upgrade_apps: yes
+
+  roles:
+    - flaskapp
