@@ -2,6 +2,7 @@
   become: yes
   
   tasks:
+    # usage: ansible-playbook playbooks/exclude_backend.yml -e "backend_name=app1 backend_state=disabled"
     - name: "{{ backend_state }} the backend server in HAProxy."
       haproxy:
         state: "{{ backend_state }}"
