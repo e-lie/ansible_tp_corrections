@@ -1,6 +1,6 @@
 - hosts: appservers
   become: yes
-  serial: 1 # all hosts in groups will be handled one by one
+  serial: 2 # all hosts in groups will be handled one by one
   
   vars:
     flask_upgrade_apps: yes
@@ -12,7 +12,7 @@
         host: '{{ inventory_hostname }}'
         socket: /var/lib/haproxy/stats
         backend: habackend
-      delegate_to: balancer1
+      delegate_to: balancer0
       # loop: "{{ groups.balancers }}"
 
   roles:
@@ -32,7 +32,7 @@
         host: '{{ inventory_hostname }}'
         socket: /var/lib/haproxy/stats
         backend: habackend
-      delegate_to: balancer1
+      delegate_to: balancer0
       loop: "{{ groups.balancers }}"
 
 

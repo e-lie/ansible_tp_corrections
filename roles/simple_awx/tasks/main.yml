@@ -28,6 +28,7 @@
   template:
     src: inventory.j2
     dest: "{{ awx_repo_dir }}/installer/inventory"
+  no_log: yes
 
 - name: AWX ansible installation
   shell: "ansible-playbook -i inventory install.yml"

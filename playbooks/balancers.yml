@@ -9,10 +9,7 @@
       # - name: app2
       #   address: 10.164.210.122:80
 
-  pre_tasks:
-    - apt:
-        update_cache: yes
-        
+  pre_tasks:   
     # - name: debug task to help build the variable
     #   debug:
     #     msg: "{{ [ { 'name': host, 'address': hostvars[host].ansible_host + ':80' } ] }}"
@@ -29,4 +26,6 @@
     
   roles:
     - geerlingguy.repo-epel
-    - geerlingguy.haproxy
+    - name: geerlingguy.haproxy
+      tags:
+        - "haproxy"

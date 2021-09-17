@@ -50,7 +50,7 @@ resource "digitalocean_droplet" "awxservers" {
   count = "${local.awx_node_count}"
   name = "awx${count.index}"
   image = "ubuntu-18-04-x64"
-  size = "4gb"
+  size = "8gb"
   region = "ams3"
   ssh_keys = ["${var.do_sshkey_id}"]
 }
