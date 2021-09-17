@@ -1,0 +1,200 @@
+- name: Setup awx server and cli then creates AWX jobs and other ressources
+  hosts: infra_admin
+
+  collections: #ensure to have awx collection installed : ansible-galaxy collection install awx.awx
+    - awx.awx
+
+  # No secrets in inventory (and so group_vars) to use with AWX https://serverfault.com/questions/878320/how-to-use-existing-vault-files-in-ansible-tower
+  vars_files:
+    - '../secrets/secrets-prod.yml'
+  vars:
+    awx_cli_host: "http://10.11.11.11"
+    awx_cli_username: admin
+    awx_cli_password: "{{ secret_awx_admin_password }}"
+
+  # roles:
+  #   - name: setup_awx
+
+  tasks:
+    - name: Ensure AWX cli installed
+      pip:
+        name: https://releases.ansible.com/ansible-tower/cli/ansible-tower-cli-3.8.1-1.tar.gz
+        executable: pip3
+      become: yes
+
+    - name: Ensure coopaname AWX orga exists 
+      tower_organization:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: Coopaname
+        state: present
+
+
+    - name: Ensure odoo_infra project exists
+      tower_project:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: Odoo infra
+        organization: Coopaname
+        scm_url: https://awx:{{ secret_gitlab_awx_token }}@gitlab.com/coopaname/odoo-infra.git
+        scm_type: git
+        scm_branch: awx
+        scm_clean: yes
+        scm_update_on_launch: yes
+        scm_update_cache_timeout: 0
+        wait: yes
+        state: present
+
+    - name: Ensure ssh key credential exists
+      tower_credential:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: id_ansible_master
+        organization: Coopaname
+        credential_type: Machine
+        inputs:
+          ssh_key_data: "{{ secret_id_ansiblemaster_privkey }}"
+          ssh_key_unlock: "{{ secret_id_ansiblemaster_passphrase }}"
+        state: present
+      changed_when: False # due to encrypted data the tasks returns always changed status -> silent this 
+
+    - name: Ensure vault passwd credential exists
+      tower_credential:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: Vault password
+        organization: Coopaname
+        credential_type: Vault
+        inputs:
+          vault_password: "{{ secret_vault_password }}"
+        state: present
+      changed_when: False # due to encrypted data the tasks returns always changed status -> silent this 
+ 
+    - name: Ensure inventory exists
+      tower_inventory:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: inventory-prod-ansible-master.cfg
+        organization: Coopaname
+        variables:
+          ansible_python_interpreter: /usr/bin/python3
+          ansible_user: root
+        state: present
+
+    - name: Ensure inventory file source exists
+      tower_inventory_source:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: "file inventory-prod-ansible-master.cfg"
+        inventory: inventory-prod-ansible-master.cfg
+        source: scm
+        source_project: Odoo infra
+        source_path: inventory-prod-ansible-master.cfg
+        overwrite: yes
+        update_on_project_update: yes
+        verbosity: 1
+        state: present
+
+    - name: Ensure ping playbook template exists
+      tower_job_template:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: "Ping"
+        organization: Coopaname
+        job_type: "run"
+        inventory: "inventory-prod-ansible-master.cfg"
+        project: "Odoo infra"
+        playbook: "playbooks/ping.yml"
+        credentials:
+          - "id_ansible_master"
+          - "Vault password"
+        state: present
+
+    - name: Ensure create_dump.yml playbook template exists
+      tower_job_template:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: "Génération de dump"
+        description: "Génération de dump sur db-backup"
+        organization: Coopaname
+        job_type: "run"
+        inventory: "inventory-prod-ansible-master.cfg"
+        project: "Odoo infra"
+        playbook: "playbooks/create_dump.yml"
+        credentials:
+          - "id_ansible_master"
+          - "Vault password"
+        state: present
+
+    - name: Ensure fileserver_odoo_dev_env.yml playbook template exists
+      tower_job_template:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: "Copie db dump et filestore pour env de dev"
+        description: "Copie un dump de la db et du filestore chaque semaine pour l'env de dev sur la machine test-compta"
+        organization: Coopaname
+        job_type: "run"
+        inventory: "inventory-prod-ansible-master.cfg"
+        project: "Odoo infra"
+        playbook: "playbooks/fileserver_odoo_dev_env.yml"
+        credentials:
+          - "id_ansible_master"
+          - "Vault password"
+        state: present
+
+    - name: Ensure odoo_demo.yml playbook template exists
+      tower_job_template:
+        tower_host: "{{ awx_cli_host }}"
+        tower_username: "{{ awx_cli_username }}"
+        tower_password: "{{ awx_cli_password }}"
+        name: "Redéploiement de l'env de demo"
+        description: "Redéploiement de l'env de demo"
+        organization: Coopaname
+        job_type: "run"
+        inventory: "inventory-prod-ansible-master.cfg"
+        project: "Odoo infra"
+        playbook: "playbooks/odoo_demo.yml"
+        timeout: 0
+        extra_vars:
+          odoo_filestore_restore: true
+          odoo_db_restore: false
+          odoo_db_pull_dump: false
+          odoo_db_generate_dump: false
+          barman_restore_pitr_date: 'immediate'
+          odoo_purge_sessions: true
+          odoo_change_admin_password: true
+          odoo_remove_mailservers: true
+          odoo_update_all_modules: true
+          odoo_init_modules: []
+          odoo_random_uuid: true
+        credentials:
+          - "id_ansible_master"
+          - "Vault password"
+        state: present
+
+    # TODO find how to export YAML/JSON schema description from GUI workflow
+    # - name: Ensure workflow template Actualisation des env Odoo exists
+    #   tower_workflow_template:
+    #     schema:
+    #       - job_template: Hello world
+    #         failure:
+    #         - inventory_source: AWS servers (AWS servers - 42)
+    #         success:
+    #         - project: Ansible Examples
+    #           always:
+    #           - job_template: Echo variable
+    #             success:
+    #             - job_template: Scan localhost
+
+
+
+
